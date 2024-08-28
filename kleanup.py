@@ -213,10 +213,10 @@ def main():
         final_dirs = [new_dirs[i-1] for i in selected_dirs]
     else:
         # Ignore the directories and their subdirectories
+        ignored_dirs = [new_dirs[i-1] for i in selected_dirs]
         final_dirs = [new_dirs[i-1] for i in range(1, len(new_dirs) + 1) if i not in selected_dirs]
 
-    # Remove ignored directories and their subdirectories
-    ignored_dirs = [new_dirs[i-1] for i in selected_dirs if action.lower() == 'i']
+    # Remove ignored directories and their subdirectories from final_dirs
     final_dirs = [dir_path for dir_path in final_dirs if not any(dir_path.startswith(ignored_dir) for ignored_dir in ignored_dirs)]
 
     # Prompt whether to continue to non-priority directories
@@ -244,7 +244,7 @@ def main():
         if action.lower() == 's':
             final_dirs.extend([additional_dirs[i-1] for i in selected_dirs])
         else:
-            ignored_dirs.extend([additional_dirs[i-1] for i in selected_dirs if action.lower() == 'i'])
+            ignored_dirs.extend([additional_dirs[i-1] for i in selected_dirs])
             final_dirs.extend([additional_dirs[i-1] for i in range(1, len(additional_dirs) + 1) if i not in selected_dirs])
 
         # Remove ignored directories and their subdirectories from the final list
@@ -284,9 +284,10 @@ def main():
                 for file in files:
                     filepath = os.path.join(root, file)
                     if not is_excluded_path(filepath):
-                        relative_path = os.path.relpath(filepath, "/")
-                        archive_path = f"ARCHIVE/{relative_path}"
-                        file_list.write(f"{filepath}\n")
+                        # Quote the file path to avoid issues with special characters
+                        filepath_quoted = f'"{filepath}"'
+                        archive_path = f"ARCHIVE/{os.path.relpath(filepath, '/')}"
+                        file_list.write(f"{filepath_quoted}\n")
 
     # Create the 7z archive with the directory structure preserved under ARCHIVE/ using file list
     archive_name = "archive.7z"
