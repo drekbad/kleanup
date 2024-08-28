@@ -16,45 +16,57 @@ def format_size(size):
             return f"{size:.1f} {unit}"
         size /= 1024.0
 
-# Function to get file creation time (works on Linux with ext4 filesystems)
-def get_creation_time(path):
+# Function to get file time (created or modified) based on user choice
+def get_file_time(path, use_modified=False):
     try:
-        return datetime.fromtimestamp(os.stat(path).st_ctime)
+        if use_modified:
+            return datetime.fromtimestamp(os.path.getmtime(path))
+        else:
+            return datetime.fromtimestamp(os.stat(path).st_ctime)
     except FileNotFoundError:
         return None
 
 # Function to calculate directory sizes and count files, skipping symbolic links and focusing on specific directories
-def get_directory_info(start_date, end_date=None):
+def get_directory_info(start_date, end_date=None, use_modified=False):
     dir_info = {}
     for base_path in TARGET_DIRECTORIES:
         for root, dirs, files in os.walk(base_path, followlinks=False):
             count = 0
             total_size = 0
+            dir_count = 0
             for file in files:
                 filepath = os.path.join(root, file)
                 if os.path.islink(filepath):
                     continue
-                creation_time = get_creation_time(filepath)
-                if creation_time:
+                file_time = get_file_time(filepath, use_modified)
+                if file_time:
                     if end_date:
-                        if start_date <= creation_time < end_date:
+                        if start_date <= file_time < end_date:
                             count += 1
                             total_size += os.path.getsize(filepath)
                     else:
-                        if creation_time >= start_date:
+                        if file_time >= start_date:
                             count += 1
                             total_size += os.path.getsize(filepath)
-            # Exclude directories with total size less than 0.1B
-            if count > 0 and total_size >= 0.1:
-                dir_info[root] = {'count': count, 'size': total_size}
+            for dir in dirs:
+                dir_count += 1
+            if count > 0 or dir_count > 0:
+                dir_info[root] = {
+                    'count': count,
+                    'size': total_size,
+                    'dir_count': dir_count,
+                    'file_count': count + dir_count
+                }
     return dir_info
 
-# Function to list directory information with numbering
+# Function to list directory information with numbering and summaries
 def list_directory_info(dir_info, header, start_number=1):
     print(f"\n{header}\n" + "-"*80)
     numbered_dirs = []
     for idx, (dir_path, info) in enumerate(dir_info.items(), start_number):
         print(f"{idx}.\t({info['count']})\t{dir_path.ljust(40)}\t{format_size(info['size'])}")
+        if info['dir_count'] > 0 or info['file_count'] > 1:
+            print(f"\t  ({info['dir_count']} dirs, {info['file_count']} files)\t{format_size(info['size'])}")
         numbered_dirs.append(dir_path)
     return numbered_dirs
 
@@ -68,7 +80,7 @@ def list_files_in_dir(dir_info, output_file):
                     if os.path.islink(filepath):
                         continue
                     file_size = os.path.getsize(filepath)
-                    created_time = get_creation_time(filepath).strftime("%Y-%m-%d %H:%M:%S")
+                    created_time = get_file_time(filepath).strftime("%Y-%m-%d %H:%M:%S")
                     modified_time = datetime.fromtimestamp(os.path.getmtime(filepath)).strftime("%Y-%m-%d %H:%M:%S")
                     f.write(f"{filepath},{format_size(file_size)},{created_time},{modified_time}\n")
 
@@ -87,6 +99,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # Main script function
 def main():
+    use_modified = '--modified-on' in sys.argv
     start_date_input = input("Please provide the start date of activity (mm/dd/yy): ")
     try:
         start_date = datetime.strptime(start_date_input, "%m/%d/%y")
@@ -96,14 +109,14 @@ def main():
 
     prior_date = start_date - timedelta(days=30)
 
-    # Find directories with files created since start_date
-    print("Scanning filesystem for files created since the specified date...")
-    new_files = get_directory_info(start_date)
-    prior_files = get_directory_info(prior_date, start_date)
+    # Find directories with files created/modified since start_date
+    print(f"Scanning filesystem for files {'modified' if use_modified else 'created'} since the specified date...")
+    new_files = get_directory_info(start_date, use_modified=use_modified)
+    prior_files = get_directory_info(prior_date, start_date, use_modified=use_modified)
 
     # Display directory info to user
-    new_dirs = list_directory_info(new_files, f"Directories containing files created since {start_date_input}:", 1)
-    prior_dirs = list_directory_info(prior_files, f"Directories containing files created within 1 mo. prior to {start_date_input}:", len(new_dirs) + 1)
+    new_dirs = list_directory_info(new_files, f"Directories containing files {'modified' if use_modified else 'created'} since {start_date_input}:", 1)
+    prior_dirs = list_directory_info(prior_files, f"Directories containing files {'modified' if use_modified else 'created'} within 1 mo. prior to {start_date_input}:", len(new_dirs) + 1)
 
     # Prompt for selection or ignoring
     action = input("\nDo you want to (S)elect or (I)gnore directories? ")
@@ -157,10 +170,10 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "-o":
         output_file = sys.argv[2]
         with open(output_file, 'w') as f:
-            f.write(f"Directories containing files created since {start_date_input}:\n" + "-"*80 + "\n")
+            f.write(f"Directories containing files {'modified' if use_modified else 'created'} since {start_date_input}:\n" + "-"*80 + "\n")
             for dir_path, info in new_files.items():
                 f.write(f"({info['count']})\t{dir_path}\t{format_size(info['size'])}\n")
-            f.write(f"\nDirectories containing files created within 1 mo. prior to {start_date_input}:\n" + "-"*80 + "\n")
+            f.write(f"\nDirectories containing files {'modified' if use_modified else 'created'} within 1 mo. prior to {start_date_input}:\n" + "-"*80 + "\n")
             for dir_path, info in prior_files.items():
                 f.write(f"({info['count']})\t{dir_path}\t{format_size(info['size'])}\n")
         list_files_in_dir({dir_path: new_files[dir_path] for dir_path in final_dirs if dir_path in new_files}, output_file)
