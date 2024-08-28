@@ -264,11 +264,16 @@ def main():
 
     # Get password and archive
     password = input("Please enter a password for the archive: ")
-    print(f"Password entered: {password}")
+
+    # Prepare the list of directories with ARCHIVE/ prefix
+    archive_dirs = []
+    for dir_path in final_dirs:
+        relative_path = os.path.relpath(dir_path, "/")
+        archive_dirs.append(f"ARCHIVE/{relative_path}")
 
     # Create the 7z archive
     archive_name = "archive.7z"
-    command = ["7z", "a", "-p" + password, "-mhe=on", archive_name] + final_dirs
+    command = ["7z", "a", "-p" + password, "-mhe=on", archive_name] + archive_dirs
     subprocess.run(command)
 
     # Optionally output to file with detailed info
