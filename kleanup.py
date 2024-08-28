@@ -12,8 +12,7 @@ PRIORITY_DIRECTORIES = [
     '/root/.msf4/loot/',
     '/root/',
     '/home/kali/',
-    '/mnt/',
-    '/opt/'
+    '/mnt/'
 ]
 
 # Directories to focus on after the priority list
@@ -136,7 +135,7 @@ def list_directory_info(dir_info, header, start_number=1):
     numbered_dirs = []
     display_count = start_number
     for dir_path, info in sorted(dir_info.items()):
-        if info['file_count'] > 0:
+        if dir_path and info['file_count'] > 0:  # Ensure path is not blank and has files
             print(f"{display_count}.\t({info['count']})\t{dir_path.ljust(40)}\t{format_size(info['size'])}")
             if info['dir_count'] > 15:
                 print(f"\t  ({info['dir_count']} dirs)\t{format_size(info['size'])}")
