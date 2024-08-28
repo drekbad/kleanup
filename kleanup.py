@@ -49,12 +49,14 @@ def get_directory_info(start_date, end_date=None):
                 dir_info[root] = {'count': count, 'size': total_size}
     return dir_info
 
-# Function to list directory information
-def list_directory_info(dir_info, header):
+# Function to list directory information with numbering
+def list_directory_info(dir_info, header, start_number=1):
     print(f"\n{header}\n" + "-"*80)
-    for idx, (dir_path, info) in enumerate(dir_info.items(), 1):
-        print(f"({info['count']})\t{dir_path.ljust(40)}\t{format_size(info['size'])}")
-    return list(dir_info.keys())
+    numbered_dirs = []
+    for idx, (dir_path, info) in enumerate(dir_info.items(), start_number):
+        print(f"{idx}.\t({info['count']})\t{dir_path.ljust(40)}\t{format_size(info['size'])}")
+        numbered_dirs.append(dir_path)
+    return numbered_dirs
 
 # Function to list files in the selected directories
 def list_files_in_dir(dir_info, output_file):
@@ -75,6 +77,14 @@ def check_disk_space(required_space):
     total, used, free = disk_usage('/')
     return free >= required_space, free
 
+# Handle graceful shutdown on Ctrl+C
+def signal_handler(sig, frame):
+    print("\nShutdown requested... exiting gracefully.")
+    sys.exit(0)
+
+import signal
+signal.signal(signal.SIGINT, signal_handler)
+
 # Main script function
 def main():
     start_date_input = input("Please provide the start date of activity (mm/dd/yy): ")
@@ -92,18 +102,36 @@ def main():
     prior_files = get_directory_info(prior_date, start_date)
 
     # Display directory info to user
-    new_dirs = list_directory_info(new_files, f"Directories containing files created since {start_date_input}:")
-    prior_dirs = list_directory_info(prior_files, f"Directories containing files created within 1 mo. prior to {start_date_input}:")
+    new_dirs = list_directory_info(new_files, f"Directories containing files created since {start_date_input}:", 1)
+    prior_dirs = list_directory_info(prior_files, f"Directories containing files created within 1 mo. prior to {start_date_input}:", len(new_dirs) + 1)
 
-    # Prompt for selection
-    selected_dirs = input("\nPlease select directories to archive by number (comma or space separated, or 'all'): ").split()
-    if 'all' in selected_dirs:
-        selected_dirs = new_dirs
+    # Prompt for selection or ignoring
+    action = input("\nDo you want to (S)elect or (I)gnore directories? ")
+    if action.lower() not in ['s', 'i']:
+        print("Invalid option. Please enter 'S' to select or 'I' to ignore.")
+        return
+
+    prompt_message = "\nPlease enter the numbers of directories to " + ("select" if action.lower() == 's' else "ignore") + " (comma or space separated, type ALL for all in the first list, or BOTH for all from both lists): "
+    selected_dirs = input(prompt_message).split()
+
+    if 'both' in [s.lower() for s in selected_dirs]:
+        selected_dirs = list(range(1, len(new_dirs) + len(prior_dirs) + 1))
+    elif 'all' in [s.lower() for s in selected_dirs]:
+        selected_dirs = list(range(1, len(new_dirs) + 1))
     else:
-        selected_dirs = [new_dirs[int(i)-1] for i in selected_dirs if i.isdigit()]
+        selected_dirs = [int(i) for i in selected_dirs if i.isdigit()]
+
+    # Determine final list of directories
+    if action.lower() == 's':
+        final_dirs = [new_dirs[i-1] for i in selected_dirs if i <= len(new_dirs)] + \
+                     [prior_dirs[i-len(new_dirs)-1] for i in selected_dirs if i > len(new_dirs)]
+    else:
+        final_dirs = [new_dirs[i-1] for i in range(1, len(new_dirs) + 1) if i not in selected_dirs] + \
+                     [prior_dirs[i-len(new_dirs)-1] for i in range(len(new_dirs) + 1, len(new_dirs) + len(prior_dirs) + 1) if i not in selected_dirs]
 
     # Calculate total size of selected directories
-    total_size = sum(new_files[dir_path]['size'] for dir_path in selected_dirs)
+    total_size = sum(new_files[dir_path]['size'] for dir_path in final_dirs if dir_path in new_files) + \
+                 sum(prior_files[dir_path]['size'] for dir_path in final_dirs if dir_path in prior_files)
 
     # Check disk space
     has_space, free_space = check_disk_space(total_size)
@@ -122,7 +150,7 @@ def main():
 
     # Create the 7z archive
     archive_name = "archive.7z"
-    command = ["7z", "a", "-p" + password, "-mhe=on", archive_name] + selected_dirs
+    command = ["7z", "a", "-p" + password, "-mhe=on", archive_name] + final_dirs
     subprocess.run(command)
 
     # Optionally output to file with detailed info
@@ -135,7 +163,8 @@ def main():
             f.write(f"\nDirectories containing files created within 1 mo. prior to {start_date_input}:\n" + "-"*80 + "\n")
             for dir_path, info in prior_files.items():
                 f.write(f"({info['count']})\t{dir_path}\t{format_size(info['size'])}\n")
-        list_files_in_dir({dir_path: new_files[dir_path] for dir_path in selected_dirs}, output_file)
+        list_files_in_dir({dir_path: new_files[dir_path] for dir_path in final_dirs if dir_path in new_files}, output_file)
+        list_files_in_dir({dir_path: prior_files[dir_path] for dir_path in final_dirs if dir_path in prior_files}, output_file)
 
     print("Archiving completed successfully.")
 
