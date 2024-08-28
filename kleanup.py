@@ -191,6 +191,7 @@ def main():
     new_dirs = list_directory_info(priority_files, "Priority Directories:", 1)
 
     final_dirs = []
+    ignored_dirs = []
     non_priority_files = {}  # Initialize to avoid reference errors
 
     # Prompt for selection or ignoring
@@ -212,7 +213,6 @@ def main():
     if action.lower() == 's':
         final_dirs = [new_dirs[i-1] for i in selected_dirs]
     else:
-        # Ignore the directories and their subdirectories
         ignored_dirs = [new_dirs[i-1] for i in selected_dirs]
         final_dirs = [new_dirs[i-1] for i in range(1, len(new_dirs) + 1) if i not in selected_dirs]
 
