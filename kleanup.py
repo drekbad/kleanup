@@ -212,10 +212,8 @@ def main():
     if action.lower() == 's':
         final_dirs = [new_dirs[i-1] for i in selected_dirs]
     else:
+        # Ignore the directories and their subdirectories
         final_dirs = [new_dirs[i-1] for i in range(1, len(new_dirs) + 1) if i not in selected_dirs]
-
-    # Remove ignored directories and their subdirectories
-    final_dirs = [dir_path for dir_path in final_dirs if not any(dir_path.startswith(ignored_dir) for ignored_dir in selected_dirs)]
 
     # Prompt whether to continue to non-priority directories
     proceed = input("\nDo you want to search non-priority directories as well? (y/n): ")
@@ -281,8 +279,7 @@ def main():
                     if not is_excluded_path(filepath):
                         relative_path = os.path.relpath(filepath, "/")
                         archive_path = f"ARCHIVE/{relative_path}"
-                        archive_entries.append(f"\"{filepath}\" \"{archive_path}\"")
-                        file_list.write(f"\"{filepath}\" \"{archive_path}\"\n")
+                        file_list.write(f"{filepath}\n")
 
     # Create the 7z archive with the directory structure preserved under ARCHIVE/ using file list
     archive_name = "archive.7z"
