@@ -27,7 +27,9 @@ EXCLUDED_DIRECTORIES = [
     '/root/.config/firefox/',
     '/root/.cache/firefox/',
     '/home/kali/.config/firefox/',
-    '/home/kali/.cache/firefox/'
+    '/home/kali/.cache/firefox/',
+    '/root/.mozilla/firefox/',
+    '/home/kali/.mozilla/firefox/'
 ]
 
 # Function to format file sizes nicely
@@ -67,16 +69,19 @@ def get_directory_info(start_date, end_date=None, use_modified=False, base_paths
                 filepath = os.path.join(root, file)
                 if is_excluded_path(filepath) or os.path.islink(filepath):
                     continue
-                file_time = get_file_time(filepath, use_modified)
-                if file_time:
-                    if end_date:
-                        if start_date <= file_time < end_date:
-                            count += 1
-                            total_size += os.path.getsize(filepath)
-                    else:
-                        if file_time >= start_date:
-                            count += 1
-                            total_size += os.path.getsize(filepath)
+                try:
+                    file_time = get_file_time(filepath, use_modified)
+                    if file_time:
+                        if end_date:
+                            if start_date <= file_time < end_date:
+                                count += 1
+                                total_size += os.path.getsize(filepath)
+                        else:
+                            if file_time >= start_date:
+                                count += 1
+                                total_size += os.path.getsize(filepath)
+                except (FileNotFoundError, PermissionError):
+                    continue  # Skip files that can't be accessed
             # Skip directories that contain no files and whose subdirectories also contain no files
             if count > 0 or total_size > 0:
                 dir_info[root] = {
@@ -93,7 +98,10 @@ def get_directory_info(start_date, end_date=None, use_modified=False, base_paths
                         for subfile in subfiles:
                             subfile_path = os.path.join(subroot, subfile)
                             if not is_excluded_path(subfile_path):
-                                subdir_total += os.path.getsize(subfile_path)
+                                try:
+                                    subdir_total += os.path.getsize(subfile_path)
+                                except (FileNotFoundError, PermissionError):
+                                    continue  # Skip files that can't be accessed
                     if subdir_total > 0:
                         dir_info[root] = {
                             'count': count,
@@ -125,10 +133,13 @@ def list_files_in_dir(dir_info, output_file):
                     filepath = os.path.join(root, file)
                     if is_excluded_path(filepath) or os.path.islink(filepath):
                         continue
-                    file_size = os.path.getsize(filepath)
-                    created_time = get_file_time(filepath).strftime("%Y-%m-%d %H:%M:%S")
-                    modified_time = datetime.fromtimestamp(os.path.getmtime(filepath)).strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(f"{filepath},{format_size(file_size)},{created_time},{modified_time}\n")
+                    try:
+                        file_size = os.path.getsize(filepath)
+                        created_time = get_file_time(filepath).strftime("%Y-%m-%d %H:%M:%S")
+                        modified_time = datetime.fromtimestamp(os.path.getmtime(filepath)).strftime("%Y-%m-%d %H:%M:%S")
+                        f.write(f"{filepath},{format_size(file_size)},{created_time},{modified_time}\n")
+                    except (FileNotFoundError, PermissionError):
+                        continue  # Skip files that can't be accessed
 
 # Function to calculate free space on disk
 def check_disk_space(required_space):
