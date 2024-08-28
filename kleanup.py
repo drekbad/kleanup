@@ -6,6 +6,9 @@ import subprocess
 from datetime import datetime, timedelta
 from shutil import disk_usage
 
+# Directories to focus on
+TARGET_DIRECTORIES = ['/home', '/root', '/tmp', '/etc']
+
 # Function to format file sizes nicely
 def format_size(size):
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
@@ -20,28 +23,30 @@ def get_creation_time(path):
     except FileNotFoundError:
         return None
 
-# Function to calculate directory sizes and count files, skipping symbolic links
-def get_directory_info(base_path, start_date, end_date=None):
+# Function to calculate directory sizes and count files, skipping symbolic links and focusing on specific directories
+def get_directory_info(start_date, end_date=None):
     dir_info = {}
-    for root, dirs, files in os.walk(base_path, followlinks=False):
-        count = 0
-        total_size = 0
-        for file in files:
-            filepath = os.path.join(root, file)
-            if os.path.islink(filepath):
-                continue
-            creation_time = get_creation_time(filepath)
-            if creation_time:
-                if end_date:
-                    if start_date <= creation_time < end_date:
-                        count += 1
-                        total_size += os.path.getsize(filepath)
-                else:
-                    if creation_time >= start_date:
-                        count += 1
-                        total_size += os.path.getsize(filepath)
-        if count > 0:
-            dir_info[root] = {'count': count, 'size': total_size}
+    for base_path in TARGET_DIRECTORIES:
+        for root, dirs, files in os.walk(base_path, followlinks=False):
+            count = 0
+            total_size = 0
+            for file in files:
+                filepath = os.path.join(root, file)
+                if os.path.islink(filepath):
+                    continue
+                creation_time = get_creation_time(filepath)
+                if creation_time:
+                    if end_date:
+                        if start_date <= creation_time < end_date:
+                            count += 1
+                            total_size += os.path.getsize(filepath)
+                    else:
+                        if creation_time >= start_date:
+                            count += 1
+                            total_size += os.path.getsize(filepath)
+            # Exclude directories with total size less than 0.1B
+            if count > 0 and total_size >= 0.1:
+                dir_info[root] = {'count': count, 'size': total_size}
     return dir_info
 
 # Function to list directory information
@@ -83,8 +88,8 @@ def main():
 
     # Find directories with files created since start_date
     print("Scanning filesystem for files created since the specified date...")
-    new_files = get_directory_info('/', start_date)
-    prior_files = get_directory_info('/', prior_date, start_date)
+    new_files = get_directory_info(start_date)
+    prior_files = get_directory_info(prior_date, start_date)
 
     # Display directory info to user
     new_dirs = list_directory_info(new_files, f"Directories containing files created since {start_date_input}:")
