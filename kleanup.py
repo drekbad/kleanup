@@ -18,6 +18,18 @@ PRIORITY_DIRECTORIES = [
 # Directories to focus on after the priority list
 TARGET_DIRECTORIES = ['/home', '/root', '/tmp', '/etc']
 
+# Directories to always exclude
+EXCLUDED_DIRECTORIES = [
+    '/root/.config/google-chrome/',
+    '/root/.cache/google-chrome/',
+    '/home/kali/.config/google-chrome/',
+    '/home/kali/.cache/google-chrome/',
+    '/root/.config/firefox/',
+    '/root/.cache/firefox/',
+    '/home/kali/.config/firefox/',
+    '/home/kali/.cache/firefox/'
+]
+
 # Function to format file sizes nicely
 def format_size(size):
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
@@ -40,6 +52,10 @@ def get_directory_info(start_date, end_date=None, use_modified=False, base_paths
     dir_info = {}
     for base_path in base_paths:
         for root, dirs, files in os.walk(base_path, followlinks=False):
+            # Skip excluded directories
+            if any(excluded_dir in root for excluded_dir in EXCLUDED_DIRECTORIES):
+                continue
+
             count = 0
             total_size = 0
             dir_count = 0
