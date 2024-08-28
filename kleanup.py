@@ -268,15 +268,18 @@ def main():
     # Get password and archive
     password = input("Please enter a password for the archive: ")
 
-    # Prepare the list of directories with ARCHIVE/ prefix
-    archive_dirs = []
+    # Prepare the list of directories with ARCHIVE/ prefix and full paths preserved
+    archive_entries = []
     for dir_path in final_dirs:
-        relative_path = os.path.relpath(dir_path, "/")
-        archive_dirs.append(f"{dir_path}/*")
+        for root, _, files in os.walk(dir_path):
+            for file in files:
+                filepath = os.path.join(root, file)
+                relative_path = os.path.relpath(filepath, "/")
+                archive_entries.append(f"ARCHIVE/{relative_path}")
 
     # Create the 7z archive with the directory structure preserved under ARCHIVE/
     archive_name = "archive.7z"
-    command = ["7z", "a", "-p" + password, "-mhe=on", archive_name] + archive_dirs
+    command = ["7z", "a", "-p" + password, "-mhe=on", archive_name] + archive_entries
     result = subprocess.run(command, capture_output=True, text=True)
 
     # Check if the archiving process encountered any errors
