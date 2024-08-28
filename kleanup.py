@@ -15,7 +15,10 @@ def format_size(size):
 
 # Function to get file creation time (works on Linux with ext4 filesystems)
 def get_creation_time(path):
-    return datetime.fromtimestamp(os.stat(path).st_ctime)
+    try:
+        return datetime.fromtimestamp(os.stat(path).st_ctime)
+    except FileNotFoundError:
+        return None
 
 # Function to calculate directory sizes and count files
 def get_directory_info(base_path, start_date, end_date=None):
@@ -26,14 +29,15 @@ def get_directory_info(base_path, start_date, end_date=None):
         for file in files:
             filepath = os.path.join(root, file)
             creation_time = get_creation_time(filepath)
-            if end_date:
-                if start_date <= creation_time < end_date:
-                    count += 1
-                    total_size += os.path.getsize(filepath)
-            else:
-                if creation_time >= start_date:
-                    count += 1
-                    total_size += os.path.getsize(filepath)
+            if creation_time:
+                if end_date:
+                    if start_date <= creation_time < end_date:
+                        count += 1
+                        total_size += os.path.getsize(filepath)
+                else:
+                    if creation_time >= start_date:
+                        count += 1
+                        total_size += os.path.getsize(filepath)
         if count > 0:
             dir_info[root] = {'count': count, 'size': total_size}
     return dir_info
@@ -64,8 +68,13 @@ def check_disk_space(required_space):
 
 # Main script function
 def main():
-    start_date_input = input("Please provide the start date of activity (mm/dd): ")
-    start_date = datetime.strptime(f"{datetime.now().year}/{start_date_input}", "%Y/%m/%d")
+    start_date_input = input("Please provide the start date of activity (mm/dd/yy): ")
+    try:
+        start_date = datetime.strptime(start_date_input, "%m/%d/%y")
+    except ValueError:
+        print("Invalid date format. Please use mm/dd/yy.")
+        return
+
     prior_date = start_date - timedelta(days=30)
 
     # Find directories with files created since start_date
