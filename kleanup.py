@@ -23,8 +23,10 @@ TARGET_DIRECTORIES = ['/home', '/root', '/tmp', '/etc']
 EXCLUDED_DIRECTORIES = [
     '/root/.local/',
     '/root/.cache/',
+    '/root/.config/',
     '/home/kali/.local/',
     '/home/kali/.cache/',
+    '/home/kali/.config/',
     '/root/.config/google-chrome/',
     '/root/.cache/google-chrome/',
     '/home/kali/.config/google-chrome/',
@@ -132,12 +134,14 @@ def get_directory_info(start_date, end_date=None, use_modified=False, base_paths
 def list_directory_info(dir_info, header, start_number=1):
     print(f"\n{header}\n" + "-"*80)
     numbered_dirs = []
-    for idx, (dir_path, info) in enumerate(sorted(dir_info.items()), start_number):
+    display_count = start_number
+    for dir_path, info in sorted(dir_info.items()):
         if info['file_count'] > 0:
-            print(f"{idx}.\t({info['count']})\t{dir_path.ljust(40)}\t{format_size(info['size'])}")
+            print(f"{display_count}.\t({info['count']})\t{dir_path.ljust(40)}\t{format_size(info['size'])}")
             if info['dir_count'] > 15:
                 print(f"\t  ({info['dir_count']} dirs)\t{format_size(info['size'])}")
             numbered_dirs.append(dir_path)
+            display_count += 1
     return numbered_dirs
 
 # Function to list files in the selected directories
@@ -213,7 +217,7 @@ def main():
     if proceed.lower() == 'y':
         print(f"Scanning additional directories for files {'modified' if use_modified else 'created'} since the specified date...")
         non_priority_files = get_directory_info(start_date, use_modified=use_modified, base_paths=TARGET_DIRECTORIES)
-        additional_dirs = list_directory_info(non_priority_files, "Additional Directories:", 1)
+        additional_dirs = list_directory_info(non_priority_files, "Additional Directories:", len(final_dirs) + 1)
 
         action = input("\nDo you want to (S)elect or (I)gnore directories from the additional list? ")
         if action.lower() not in ['s', 'i']:
