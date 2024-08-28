@@ -190,6 +190,9 @@ def main():
     priority_files = get_directory_info(start_date, use_modified=use_modified, base_paths=PRIORITY_DIRECTORIES)
     new_dirs = list_directory_info(priority_files, "Priority Directories:", 1)
 
+    final_dirs = []
+    non_priority_files = {}  # Initialize to avoid reference errors
+
     # Prompt for selection or ignoring
     action = input("\nDo you want to (S)elect or (I)gnore directories from the priority list? ")
     if action.lower() not in ['s', 'i']:
