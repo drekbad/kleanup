@@ -277,8 +277,8 @@ def main():
                     filepath = os.path.join(root, file)
                     if not is_excluded_path(filepath):
                         relative_path = os.path.relpath(filepath, "/")
-                        archive_entries.append(f"ARCHIVE/{relative_path}")
-                        file_list.write(f"{filepath}\n")
+                        archive_path = f"ARCHIVE/{relative_path}"
+                        file_list.write(f"\"{filepath}\" -so | 7z x -si -ttar -aoa -ttarpath=../{archive_path}\n")
 
     # Create the 7z archive with the directory structure preserved under ARCHIVE/ using file list
     archive_name = "archive.7z"
