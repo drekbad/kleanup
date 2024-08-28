@@ -270,16 +270,19 @@ def main():
 
     # Prepare the list of directories with ARCHIVE/ prefix and full paths preserved
     archive_entries = []
-    for dir_path in final_dirs:
-        for root, _, files in os.walk(dir_path):
-            for file in files:
-                filepath = os.path.join(root, file)
-                relative_path = os.path.relpath(filepath, "/")
-                archive_entries.append(f"ARCHIVE/{relative_path}")
+    with open("filelist.txt", "w") as file_list:
+        for dir_path in final_dirs:
+            for root, _, files in os.walk(dir_path):
+                for file in files:
+                    filepath = os.path.join(root, file)
+                    if not is_excluded_path(filepath):
+                        relative_path = os.path.relpath(filepath, "/")
+                        archive_entries.append(f"ARCHIVE/{relative_path}")
+                        file_list.write(f"{filepath}\n")
 
-    # Create the 7z archive with the directory structure preserved under ARCHIVE/
+    # Create the 7z archive with the directory structure preserved under ARCHIVE/ using file list
     archive_name = "archive.7z"
-    command = ["7z", "a", "-p" + password, "-mhe=on", archive_name] + archive_entries
+    command = ["7z", "a", "-p" + password, "-mhe=on", archive_name, "@filelist.txt"]
     result = subprocess.run(command, capture_output=True, text=True)
 
     # Check if the archiving process encountered any errors
@@ -288,6 +291,9 @@ def main():
     else:
         print("Archiving failed with errors:")
         print(result.stderr)
+
+    # Clean up temporary file list
+    os.remove("filelist.txt")
 
     # Optionally output to file with detailed info
     if len(sys.argv) > 1 and sys.argv[1] == "-o":
