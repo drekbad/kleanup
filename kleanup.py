@@ -241,15 +241,18 @@ def main():
         else:
             final_dirs.extend([additional_dirs[i-1] for i in range(1, len(additional_dirs) + 1) if i not in selected_dirs])
 
+    # Calculate total size of selected directories
+    total_size = sum(priority_files[dir_path]['size'] for dir_path in final_dirs if dir_path in priority_files) + \
+                 sum(non_priority_files[dir_path]['size'] for dir_path in final_dirs if dir_path in non_priority_files)
+
+    # Display total size before proceeding
+    print(f"\nThe total size of files to be archived is \033[1m{format_size(total_size)}\033[0m")
+
     # Ensure user confirmation before archiving
     confirm = input("\nDo you want to proceed with archiving the selected directories? (y/n): ")
     if confirm.lower() != 'y':
         print("Archiving canceled by user.")
         return
-
-    # Calculate total size of selected directories
-    total_size = sum(priority_files[dir_path]['size'] for dir_path in final_dirs if dir_path in priority_files) + \
-                 sum(non_priority_files[dir_path]['size'] for dir_path in final_dirs if dir_path in non_priority_files)
 
     # Check disk space
     has_space, free_space = check_disk_space(total_size)
@@ -269,12 +272,19 @@ def main():
     archive_dirs = []
     for dir_path in final_dirs:
         relative_path = os.path.relpath(dir_path, "/")
-        archive_dirs.append(f"ARCHIVE/{relative_path}")
+        archive_dirs.append(f"{dir_path}/*")
 
-    # Create the 7z archive
+    # Create the 7z archive with the directory structure preserved under ARCHIVE/
     archive_name = "archive.7z"
     command = ["7z", "a", "-p" + password, "-mhe=on", archive_name] + archive_dirs
-    subprocess.run(command)
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    # Check if the archiving process encountered any errors
+    if result.returncode == 0:
+        print("Archiving completed successfully.")
+    else:
+        print("Archiving failed with errors:")
+        print(result.stderr)
 
     # Optionally output to file with detailed info
     if len(sys.argv) > 1 and sys.argv[1] == "-o":
@@ -288,8 +298,6 @@ def main():
                 f.write(f"({info['count']})\t{dir_path}\t{format_size(info['size'])}\n")
         list_files_in_dir({dir_path: priority_files[dir_path] for dir_path in final_dirs if dir_path in priority_files}, output_file)
         list_files_in_dir({dir_path: non_priority_files[dir_path] for dir_path in final_dirs if dir_path in non_priority_files}, output_file)
-
-    print("Archiving completed successfully.")
 
 if __name__ == "__main__":
     main()
