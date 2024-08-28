@@ -47,13 +47,17 @@ def get_file_time(path, use_modified=False):
     except FileNotFoundError:
         return None
 
+# Function to check if a path should be excluded
+def is_excluded_path(path):
+    return any(path.startswith(excluded_dir) for excluded_dir in EXCLUDED_DIRECTORIES)
+
 # Function to calculate directory sizes and count files, skipping symbolic links and focusing on specific directories
 def get_directory_info(start_date, end_date=None, use_modified=False, base_paths=None):
     dir_info = {}
     for base_path in base_paths:
         for root, dirs, files in os.walk(base_path, followlinks=False):
             # Skip excluded directories
-            if any(excluded_dir in root for excluded_dir in EXCLUDED_DIRECTORIES):
+            if is_excluded_path(root):
                 continue
 
             count = 0
@@ -61,7 +65,7 @@ def get_directory_info(start_date, end_date=None, use_modified=False, base_paths
             dir_count = 0
             for file in files:
                 filepath = os.path.join(root, file)
-                if os.path.islink(filepath):
+                if is_excluded_path(filepath) or os.path.islink(filepath):
                     continue
                 file_time = get_file_time(filepath, use_modified)
                 if file_time:
@@ -87,7 +91,9 @@ def get_directory_info(start_date, end_date=None, use_modified=False, base_paths
                     subdir_path = os.path.join(root, subdir)
                     for subroot, subdirs, subfiles in os.walk(subdir_path, followlinks=False):
                         for subfile in subfiles:
-                            subdir_total += os.path.getsize(os.path.join(subroot, subfile))
+                            subfile_path = os.path.join(subroot, subfile)
+                            if not is_excluded_path(subfile_path):
+                                subdir_total += os.path.getsize(subfile_path)
                     if subdir_total > 0:
                         dir_info[root] = {
                             'count': count,
@@ -117,7 +123,7 @@ def list_files_in_dir(dir_info, output_file):
             for root, _, files in os.walk(dir_path):
                 for file in files:
                     filepath = os.path.join(root, file)
-                    if os.path.islink(filepath):
+                    if is_excluded_path(filepath) or os.path.islink(filepath):
                         continue
                     file_size = os.path.getsize(filepath)
                     created_time = get_file_time(filepath).strftime("%Y-%m-%d %H:%M:%S")
