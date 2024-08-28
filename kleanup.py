@@ -215,6 +215,10 @@ def main():
         # Ignore the directories and their subdirectories
         final_dirs = [new_dirs[i-1] for i in range(1, len(new_dirs) + 1) if i not in selected_dirs]
 
+    # Remove ignored directories and their subdirectories
+    ignored_dirs = [new_dirs[i-1] for i in selected_dirs if action.lower() == 'i']
+    final_dirs = [dir_path for dir_path in final_dirs if not any(dir_path.startswith(ignored_dir) for ignored_dir in ignored_dirs)]
+
     # Prompt whether to continue to non-priority directories
     proceed = input("\nDo you want to search non-priority directories as well? (y/n): ")
     if proceed.lower() == 'y':
@@ -240,7 +244,11 @@ def main():
         if action.lower() == 's':
             final_dirs.extend([additional_dirs[i-1] for i in selected_dirs])
         else:
+            ignored_dirs.extend([additional_dirs[i-1] for i in selected_dirs if action.lower() == 'i'])
             final_dirs.extend([additional_dirs[i-1] for i in range(1, len(additional_dirs) + 1) if i not in selected_dirs])
+
+        # Remove ignored directories and their subdirectories from the final list
+        final_dirs = [dir_path for dir_path in final_dirs if not any(dir_path.startswith(ignored_dir) for ignored_dir in ignored_dirs)]
 
     # Calculate total size of selected directories
     total_size = sum(priority_files[dir_path]['size'] for dir_path in final_dirs if dir_path in priority_files) + \
@@ -270,7 +278,6 @@ def main():
     password = input("Please enter a password for the archive: ")
 
     # Prepare the list of directories with ARCHIVE/ prefix and full paths preserved
-    archive_entries = []
     with open("filelist.txt", "w") as file_list:
         for dir_path in final_dirs:
             for root, _, files in os.walk(dir_path):
