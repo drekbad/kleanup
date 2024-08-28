@@ -6,7 +6,16 @@ import subprocess
 from datetime import datetime, timedelta
 from shutil import disk_usage
 
-# Directories to focus on
+# Editable priority directories
+PRIORITY_DIRECTORIES = [
+    '/root/.msf4/loot/',
+    '/root/',
+    '/home/kali/',
+    '/mnt/',
+    '/opt/'
+]
+
+# Directories to focus on after the priority list
 TARGET_DIRECTORIES = ['/home', '/root', '/tmp', '/etc']
 
 # Function to format file sizes nicely
@@ -27,9 +36,9 @@ def get_file_time(path, use_modified=False):
         return None
 
 # Function to calculate directory sizes and count files, skipping symbolic links and focusing on specific directories
-def get_directory_info(start_date, end_date=None, use_modified=False):
+def get_directory_info(start_date, end_date=None, use_modified=False, base_paths=None):
     dir_info = {}
-    for base_path in TARGET_DIRECTORIES:
+    for base_path in base_paths:
         for root, dirs, files in os.walk(base_path, followlinks=False):
             count = 0
             total_size = 0
@@ -65,7 +74,7 @@ def list_directory_info(dir_info, header, start_number=1):
     numbered_dirs = []
     for idx, (dir_path, info) in enumerate(dir_info.items(), start_number):
         print(f"{idx}.\t({info['count']})\t{dir_path.ljust(40)}\t{format_size(info['size'])}")
-        if info['dir_count'] > 0 or info['file_count'] > 1:
+        if info['dir_count'] > 15:
             print(f"\t  ({info['dir_count']} dirs, {info['file_count']} files)\t{format_size(info['size'])}")
         numbered_dirs.append(dir_path)
     return numbered_dirs
@@ -109,42 +118,68 @@ def main():
 
     prior_date = start_date - timedelta(days=30)
 
-    # Find directories with files created/modified since start_date
-    print(f"Scanning filesystem for files {'modified' if use_modified else 'created'} since the specified date...")
-    new_files = get_directory_info(start_date, use_modified=use_modified)
-    prior_files = get_directory_info(prior_date, start_date, use_modified=use_modified)
-
-    # Display directory info to user
-    new_dirs = list_directory_info(new_files, f"Directories containing files {'modified' if use_modified else 'created'} since {start_date_input}:", 1)
-    prior_dirs = list_directory_info(prior_files, f"Directories containing files {'modified' if use_modified else 'created'} within 1 mo. prior to {start_date_input}:", len(new_dirs) + 1)
+    # Handle priority directories first
+    print(f"Scanning priority directories for files {'modified' if use_modified else 'created'} since the specified date...")
+    priority_files = get_directory_info(start_date, use_modified=use_modified, base_paths=PRIORITY_DIRECTORIES)
+    new_dirs = list_directory_info(priority_files, "Priority Directories:", 1)
 
     # Prompt for selection or ignoring
-    action = input("\nDo you want to (S)elect or (I)gnore directories? ")
+    action = input("\nDo you want to (S)elect or (I)gnore directories from the priority list? ")
     if action.lower() not in ['s', 'i']:
         print("Invalid option. Please enter 'S' to select or 'I' to ignore.")
         return
 
-    prompt_message = "\nPlease enter the numbers of directories to " + ("select" if action.lower() == 's' else "ignore") + " (comma or space separated, type ALL for all in the first list, or BOTH for all from both lists): "
+    prompt_message = "\nPlease enter the numbers of directories to " + ("select" if action.lower() == 's' else "ignore") + " (comma or space separated, type ALL for all, or NONE to skip): "
     selected_dirs = input(prompt_message).split()
 
-    if 'both' in [s.lower() for s in selected_dirs]:
-        selected_dirs = list(range(1, len(new_dirs) + len(prior_dirs) + 1))
+    if 'none' in [s.lower() for s in selected_dirs]:
+        selected_dirs = []
     elif 'all' in [s.lower() for s in selected_dirs]:
         selected_dirs = list(range(1, len(new_dirs) + 1))
     else:
         selected_dirs = [int(i) for i in selected_dirs if i.isdigit()]
 
-    # Determine final list of directories
     if action.lower() == 's':
-        final_dirs = [new_dirs[i-1] for i in selected_dirs if i <= len(new_dirs)] + \
-                     [prior_dirs[i-len(new_dirs)-1] for i in selected_dirs if i > len(new_dirs)]
+        final_dirs = [new_dirs[i-1] for i in selected_dirs]
     else:
-        final_dirs = [new_dirs[i-1] for i in range(1, len(new_dirs) + 1) if i not in selected_dirs] + \
-                     [prior_dirs[i-len(new_dirs)-1] for i in range(len(new_dirs) + 1, len(new_dirs) + len(prior_dirs) + 1) if i not in selected_dirs]
+        final_dirs = [new_dirs[i-1] for i in range(1, len(new_dirs) + 1) if i not in selected_dirs]
+
+    # Prompt whether to continue to non-priority directories
+    proceed = input("\nDo you want to search non-priority directories as well? (y/n): ")
+    if proceed.lower() == 'y':
+        print(f"Scanning additional directories for files {'modified' if use_modified else 'created'} since the specified date...")
+        non_priority_files = get_directory_info(start_date, use_modified=use_modified, base_paths=TARGET_DIRECTORIES)
+        additional_dirs = list_directory_info(non_priority_files, "Additional Directories:", 1)
+
+        action = input("\nDo you want to (S)elect or (I)gnore directories from the additional list? ")
+        if action.lower() not in ['s', 'i']:
+            print("Invalid option. Please enter 'S' to select or 'I' to ignore.")
+            return
+
+        prompt_message = "\nPlease enter the numbers of directories to " + ("select" if action.lower() == 's' else "ignore") + " (comma or space separated, type ALL for all, or NONE to skip): "
+        selected_dirs = input(prompt_message).split()
+
+        if 'none' in [s.lower() for s in selected_dirs]:
+            selected_dirs = []
+        elif 'all' in [s.lower() for s in selected_dirs]:
+            selected_dirs = list(range(1, len(additional_dirs) + 1))
+        else:
+            selected_dirs = [int(i) for i in selected_dirs if i.isdigit()]
+
+        if action.lower() == 's':
+            final_dirs.extend([additional_dirs[i-1] for i in selected_dirs])
+        else:
+            final_dirs.extend([additional_dirs[i-1] for i in range(1, len(additional_dirs) + 1) if i not in selected_dirs])
+
+    # Ensure user confirmation before archiving
+    confirm = input("\nDo you want to proceed with archiving the selected directories? (y/n): ")
+    if confirm.lower() != 'y':
+        print("Archiving canceled by user.")
+        return
 
     # Calculate total size of selected directories
-    total_size = sum(new_files[dir_path]['size'] for dir_path in final_dirs if dir_path in new_files) + \
-                 sum(prior_files[dir_path]['size'] for dir_path in final_dirs if dir_path in prior_files)
+    total_size = sum(priority_files[dir_path]['size'] for dir_path in final_dirs if dir_path in priority_files) + \
+                 sum(non_priority_files[dir_path]['size'] for dir_path in final_dirs if dir_path in non_priority_files)
 
     # Check disk space
     has_space, free_space = check_disk_space(total_size)
@@ -171,13 +206,13 @@ def main():
         output_file = sys.argv[2]
         with open(output_file, 'w') as f:
             f.write(f"Directories containing files {'modified' if use_modified else 'created'} since {start_date_input}:\n" + "-"*80 + "\n")
-            for dir_path, info in new_files.items():
+            for dir_path, info in priority_files.items():
                 f.write(f"({info['count']})\t{dir_path}\t{format_size(info['size'])}\n")
             f.write(f"\nDirectories containing files {'modified' if use_modified else 'created'} within 1 mo. prior to {start_date_input}:\n" + "-"*80 + "\n")
-            for dir_path, info in prior_files.items():
+            for dir_path, info in non_priority_files.items():
                 f.write(f"({info['count']})\t{dir_path}\t{format_size(info['size'])}\n")
-        list_files_in_dir({dir_path: new_files[dir_path] for dir_path in final_dirs if dir_path in new_files}, output_file)
-        list_files_in_dir({dir_path: prior_files[dir_path] for dir_path in final_dirs if dir_path in prior_files}, output_file)
+        list_files_in_dir({dir_path: priority_files[dir_path] for dir_path in final_dirs if dir_path in priority_files}, output_file)
+        list_files_in_dir({dir_path: non_priority_files[dir_path] for dir_path in final_dirs if dir_path in non_priority_files}, output_file)
 
     print("Archiving completed successfully.")
 
