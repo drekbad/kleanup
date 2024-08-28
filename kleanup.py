@@ -20,14 +20,16 @@ def get_creation_time(path):
     except FileNotFoundError:
         return None
 
-# Function to calculate directory sizes and count files
+# Function to calculate directory sizes and count files, skipping symbolic links
 def get_directory_info(base_path, start_date, end_date=None):
     dir_info = {}
-    for root, dirs, files in os.walk(base_path):
+    for root, dirs, files in os.walk(base_path, followlinks=False):
         count = 0
         total_size = 0
         for file in files:
             filepath = os.path.join(root, file)
+            if os.path.islink(filepath):
+                continue
             creation_time = get_creation_time(filepath)
             if creation_time:
                 if end_date:
@@ -56,6 +58,8 @@ def list_files_in_dir(dir_info, output_file):
             for root, _, files in os.walk(dir_path):
                 for file in files:
                     filepath = os.path.join(root, file)
+                    if os.path.islink(filepath):
+                        continue
                     file_size = os.path.getsize(filepath)
                     created_time = get_creation_time(filepath).strftime("%Y-%m-%d %H:%M:%S")
                     modified_time = datetime.fromtimestamp(os.path.getmtime(filepath)).strftime("%Y-%m-%d %H:%M:%S")
