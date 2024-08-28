@@ -57,26 +57,41 @@ def get_directory_info(start_date, end_date=None, use_modified=False, base_paths
                         if file_time >= start_date:
                             count += 1
                             total_size += os.path.getsize(filepath)
-            for dir in dirs:
-                dir_count += 1
-            if count > 0 or dir_count > 0:
+            # Skip directories that contain no files and whose subdirectories also contain no files
+            if count > 0 or total_size > 0:
                 dir_info[root] = {
                     'count': count,
                     'size': total_size,
-                    'dir_count': dir_count,
-                    'file_count': count + dir_count
+                    'dir_count': len(dirs),
+                    'file_count': count
                 }
+            elif dirs:  # Check if the subdirectories contain files
+                subdir_total = 0
+                for subdir in dirs:
+                    subdir_path = os.path.join(root, subdir)
+                    for subroot, subdirs, subfiles in os.walk(subdir_path, followlinks=False):
+                        for subfile in subfiles:
+                            subdir_total += os.path.getsize(os.path.join(subroot, subfile))
+                    if subdir_total > 0:
+                        dir_info[root] = {
+                            'count': count,
+                            'size': subdir_total,
+                            'dir_count': len(dirs),
+                            'file_count': count
+                        }
+                        break
     return dir_info
 
 # Function to list directory information with numbering and summaries
 def list_directory_info(dir_info, header, start_number=1):
     print(f"\n{header}\n" + "-"*80)
     numbered_dirs = []
-    for idx, (dir_path, info) in enumerate(dir_info.items(), start_number):
-        print(f"{idx}.\t({info['count']})\t{dir_path.ljust(40)}\t{format_size(info['size'])}")
-        if info['dir_count'] > 15:
-            print(f"\t  ({info['dir_count']} dirs, {info['file_count']} files)\t{format_size(info['size'])}")
-        numbered_dirs.append(dir_path)
+    for idx, (dir_path, info) in enumerate(sorted(dir_info.items()), start_number):
+        if info['file_count'] > 0:
+            print(f"{idx}.\t({info['count']})\t{dir_path.ljust(40)}\t{format_size(info['size'])}")
+            if info['dir_count'] > 15:
+                print(f"\t  ({info['dir_count']} dirs)\t{format_size(info['size'])}")
+            numbered_dirs.append(dir_path)
     return numbered_dirs
 
 # Function to list files in the selected directories
