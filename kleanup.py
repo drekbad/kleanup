@@ -5,6 +5,7 @@ import sys
 import subprocess
 from datetime import datetime, timedelta
 from shutil import disk_usage
+from collections import defaultdict
 
 # Editable priority directories
 PRIORITY_DIRECTORIES = [
@@ -20,6 +21,10 @@ TARGET_DIRECTORIES = ['/home', '/root', '/tmp', '/etc']
 
 # Directories to always exclude
 EXCLUDED_DIRECTORIES = [
+    '/root/.local/',
+    '/root/.cache/',
+    '/home/kali/.local/',
+    '/home/kali/.cache/',
     '/root/.config/google-chrome/',
     '/root/.cache/google-chrome/',
     '/home/kali/.config/google-chrome/',
@@ -52,6 +57,17 @@ def get_file_time(path, use_modified=False):
 # Function to check if a path should be excluded
 def is_excluded_path(path):
     return any(path.startswith(excluded_dir) for excluded_dir in EXCLUDED_DIRECTORIES)
+
+# Summarize directories with similar paths
+def summarize_directories(dir_info):
+    summarized_info = defaultdict(lambda: {'count': 0, 'size': 0, 'dir_count': 0, 'file_count': 0})
+    for path, info in dir_info.items():
+        common_path = "/".join(path.split("/")[:-2])  # Group by common higher-level path
+        summarized_info[common_path]['count'] += info['count']
+        summarized_info[common_path]['size'] += info['size']
+        summarized_info[common_path]['dir_count'] += info['dir_count']
+        summarized_info[common_path]['file_count'] += info['file_count']
+    return summarized_info
 
 # Function to calculate directory sizes and count files, skipping symbolic links and focusing on specific directories
 def get_directory_info(start_date, end_date=None, use_modified=False, base_paths=None):
@@ -110,7 +126,7 @@ def get_directory_info(start_date, end_date=None, use_modified=False, base_paths
                             'file_count': count
                         }
                         break
-    return dir_info
+    return summarize_directories(dir_info)
 
 # Function to list directory information with numbering and summaries
 def list_directory_info(dir_info, header, start_number=1):
